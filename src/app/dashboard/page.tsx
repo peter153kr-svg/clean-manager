@@ -1,0 +1,27 @@
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { date, status, won } from "@/lib/format";
+
+const jobStatus: Record<string,string> = { scheduled:"예약", in_progress:"작업중", completed:"완료", cancelled:"취소" };
+const contentLabels: Record<string,string> = { blog:"블로그", website_case:"홈페이지 시공후기", threads:"스레드", reels:"릴스", full_package:"전체 콘텐츠" };
+
+export default async function Dashboard() {
+  const supabase = await createClient(); const today = new Date().toLocaleDateString("en-CA", { timeZone:"Asia/Seoul" }); const month = today.slice(0,7); const nextMonth = new Date(`${month}-01T00:00:00Z`); nextMonth.setUTCMonth(nextMonth.getUTCMonth()+1);
+  const [{ count:newInquiries },{ count:upcoming },{ count:completed },{ data:sales },{ data:todayJobs },{ data:recentInquiries },{ data:recentContent }] = await Promise.all([
+    supabase.from("inquiries").select("*",{count:"exact",head:true}).eq("status","new"),
+    supabase.from("jobs").select("*",{count:"exact",head:true}).gte("job_date",today).eq("status","scheduled"),
+    supabase.from("jobs").select("*",{count:"exact",head:true}).eq("status","completed").gte("job_date",`${month}-01`).lt("job_date",nextMonth.toISOString().slice(0,10)),
+    supabase.from("sales").select("revenue").gte("sale_date",`${month}-01`).lt("sale_date",nextMonth.toISOString().slice(0,10)),
+    supabase.from("jobs").select("*,customers(name)").eq("job_date",today).neq("status","cancelled").order("start_time"),
+    supabase.from("inquiries").select("*,customers(name)").order("created_at",{ascending:false}).limit(5),
+    supabase.from("content_generations").select("id,content_type,status,created_at,content_projects!inner(job_id,jobs(apartment_name,service_type))").order("created_at",{ascending:false}).limit(4),
+  ]);
+  const revenue = (sales||[]).reduce((sum,row) => sum + (row.revenue||0),0);
+  const cards = [["이번 달 매출",won(revenue),"매출 데이터 기준"],["신규 문의",`${newInquiries||0}건`,"확인이 필요한 문의"],["예정 작업",`${upcoming||0}건`,"오늘 이후 예약 작업"],["이번 달 완료",`${completed||0}건`,"완료 처리된 작업"]];
+  return <div className="page space-y-7"><header className="page-header"><div><p className="eyebrow">DASHBOARD</p><h1 className="page-title">좋은 아침이에요</h1><p className="page-description">오늘의 맑은하늘클린 업무를 확인하세요.</p></div><Link href="/inquiries/new" className="ui-button ui-button-primary">새 문의 등록</Link></header>
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value,caption]) => <article key={label} className="ui-card ui-card-hover p-5"><p className="text-sm font-medium text-slate-500">{label}</p><p className="mt-3 text-3xl font-bold tracking-[-.05em] text-slate-900">{value}</p><p className="mt-3 text-xs text-slate-400">{caption}</p></article>)}</section>
+    <section className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]"><article className="ui-card p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-bold">오늘의 작업</h2><p className="mt-1 text-sm text-slate-400">오늘 예정된 현장 일정입니다.</p></div><Link href="/jobs" className="text-sm font-semibold text-blue-600">전체 보기</Link></div>{!todayJobs?.length?<div className="empty-state">오늘 예정된 작업이 없습니다.</div>:<div className="space-y-2">{todayJobs.map((job:any) => <Link href={`/jobs/${job.id}`} key={job.id} className="block rounded-xl p-3 transition hover:bg-slate-50"><div className="flex items-center justify-between gap-3"><div><p className="data-primary">{job.start_time||"시간 미정"} · {job.apartment_name||"현장 미입력"}</p><p className="data-secondary">{job.customers?.name||"고객 미입력"} · {job.service_type||"작업 종류 미입력"}</p></div><span className={`status-badge status-${job.status}`}>{jobStatus[job.status]}</span></div></Link>)}</div>}</article>
+      <article className="ui-card p-5 sm:p-6"><div className="mb-5"><h2 className="font-bold">최근 AI 콘텐츠</h2><p className="mt-1 text-sm text-slate-400">현장 기반 생성 이력입니다.</p></div>{!recentContent?.length?<div className="empty-state">아직 생성한 콘텐츠가 없습니다.</div>:<div className="space-y-2">{recentContent.map((item:any) => <Link href={`/jobs/${item.content_projects?.job_id}/content`} key={item.id} className="block rounded-xl p-3 transition hover:bg-slate-50"><p className="data-primary">{contentLabels[item.content_type]||item.content_type}</p><p className="data-secondary">{item.content_projects?.jobs?.apartment_name||item.content_projects?.jobs?.service_type||"현장 콘텐츠"} · {date(item.created_at)}</p></Link>)}</div>}</article></section>
+    <section className="ui-card p-5 sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-bold">최근 문의</h2><p className="mt-1 text-sm text-slate-400">최근 접수된 고객 문의입니다.</p></div><Link href="/inquiries" className="text-sm font-semibold text-blue-600">문의 관리</Link></div>{!recentInquiries?.length?<div className="empty-state">등록된 문의가 없습니다.</div>:<div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{recentInquiries.map((item:any) => <Link href={`/inquiries/${item.id}/edit`} key={item.id} className="rounded-xl border border-slate-100 p-4 transition hover:border-blue-100 hover:bg-blue-50/30"><div className="flex items-start justify-between gap-2"><p className="data-primary">{item.customers?.name||"고객 미입력"}</p><span className={`status-badge status-${item.status}`}>{status[item.status]}</span></div><p className="mt-2 text-sm text-slate-600">{item.apartment_name||item.region||"현장 정보 미입력"}</p><p className="mt-1 text-xs text-slate-400">{date(item.inquiry_date)} · {won(item.estimated_amount)}</p></Link>)}</div>}</section>
+  </div>;
+}

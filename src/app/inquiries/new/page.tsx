@@ -1,0 +1,1 @@
+import{createClient}from"@/lib/supabase/server";import{InquiryForm}from"@/components/inquiry-form";export default async function New(){const{data}=await(await createClient()).from('customers').select('id,name,phone').order('name');return <div><h1 className="mb-5 text-2xl font-bold">문의 등록</h1><InquiryForm customers={data||[]}/></div>}
