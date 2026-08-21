@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
 
     const email = String(new FormData(event.currentTarget).get("email"));
     const { error } = await createClient().auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
+      redirectTo: `${window.location.origin}/auth/callback?next=/update-password`,
     });
 
     if (error) {
