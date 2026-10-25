@@ -1,0 +1,9 @@
+{
+  "update_id": 1001,
+  "channel_post": {
+    "message_id": 101,
+    "chat": { "id": -1009876543210, "type": "channel", "title": "Synthetic local test" },
+    "date": 1792886400,
+    "text": "테스트 일정 원문 — 실제 예약 아님"
+  }
+}

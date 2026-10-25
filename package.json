@@ -7,7 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:telegram": "node --test src/lib/telegram/*.test.mjs"
+    "test:telegram": "node --test src/lib/telegram/*.test.mjs",
+    "db:local:prepare": "node scripts/local-supabase.mjs prepare",
+    "db:local:start": "node scripts/local-supabase.mjs start",
+    "db:local:reset": "node scripts/local-supabase.mjs reset",
+    "db:local:status": "node scripts/local-supabase.mjs status",
+    "db:local:stop": "node scripts/local-supabase.mjs stop",
+    "test:db:local": "node scripts/local-supabase.mjs test",
+    "test:telegram:local": "node scripts/local-supabase.mjs integration",
+    "test:local-tools": "node --test tests/local-tools.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
@@ -24,6 +32,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "supabase": "2.122.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
