@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Isolated security validation runtime and local-only keys
+/.security-local/
+/supabase/.temp/
+/supabase/.branches/

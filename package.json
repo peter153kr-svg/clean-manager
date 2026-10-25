@@ -6,12 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "security:local:prepare": "node scripts/security-local.mjs prepare",
+    "security:local:start": "node scripts/security-local.mjs start",
+    "security:local:reset": "node scripts/security-local.mjs reset",
+    "security:local:build": "node scripts/security-local.mjs build",
+    "security:local:stop": "node scripts/security-local.mjs stop",
+    "test:crm:local": "node scripts/security-local.mjs integration",
+    "test:security": "node --test tests/dependencies.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
-    "next": "16.3.1",
+    "next": "16.4.3",
     "openai": "^7.5.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -22,7 +30,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.4.3",
+    "supabase": "2.122.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
