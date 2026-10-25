@@ -73,3 +73,5 @@ Node의 기존 MODULE_TYPELESS_PACKAGE_JSON 경고와 pgTAP 확장이 이미 존
 
 이전 재부팅 전의 차단 원인(Docker 엔진 미기동/Windows RebootPending)은 이번 재부팅 후 해소됐습니다.
 상세 실행/Preview 절차: [telegram-local-validation.md](telegram-local-validation.md)
+
+최신 main(보안 PR #3)과의 실제 통합 검증은 [telegram-main-integration.md](telegram-main-integration.md)에 기록했습니다.
