@@ -74,3 +74,7 @@ HTTP 200만으로 DB 저장 성공 검증을 완료했다고 판단하지 않습
 - https://supabase.com/docs/guides/local-development/cli-workflows
 - https://supabase.com/docs/reference/cli/supabase-test-db
 - https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation
+
+## 최신 검증 결과
+
+2026-10-25 재부팅 후 SQL 31/31과 실제 로컬 DB 통합 9/9가 통과했습니다. [실행 결과와 남은 제한](telegram-local-validation-results.md)을 확인하세요. 보안 업데이트는 [이슈 #2](https://github.com/peter153kr-svg/clean-manager/issues/2)로 분리합니다.
