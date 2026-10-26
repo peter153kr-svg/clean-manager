@@ -40,7 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Isolated security validation runtime and local-only keys
-/.security-local/
+# Isolated local Supabase runtime and local-only keys
+/.supabase-local/
 /supabase/.temp/
 /supabase/.branches/
+
+# Security validation runtime
+/.security-local/

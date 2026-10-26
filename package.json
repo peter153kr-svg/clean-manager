@@ -14,7 +14,16 @@
     "security:local:build": "node scripts/security-local.mjs build",
     "security:local:stop": "node scripts/security-local.mjs stop",
     "test:crm:local": "node scripts/security-local.mjs integration",
-    "test:security": "node --test tests/dependencies.test.mjs"
+    "test:security": "node --test tests/dependencies.test.mjs",
+    "test:telegram": "node --test src/lib/telegram/*.test.mjs",
+    "db:local:prepare": "node scripts/local-supabase.mjs prepare",
+    "db:local:start": "node scripts/local-supabase.mjs start",
+    "db:local:reset": "node scripts/local-supabase.mjs reset",
+    "db:local:status": "node scripts/local-supabase.mjs status",
+    "db:local:stop": "node scripts/local-supabase.mjs stop",
+    "test:db:local": "node scripts/local-supabase.mjs test",
+    "test:telegram:local": "node scripts/local-supabase.mjs integration",
+    "test:local-tools": "node --test tests/local-tools.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

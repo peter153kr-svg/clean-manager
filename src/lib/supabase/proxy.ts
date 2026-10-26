@@ -6,7 +6,10 @@ const publicPaths = new Set(["/login", "/forgot-password", "/update-password", "
 
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  if (path === "/api/external-inquiry") return NextResponse.next({ request });
+  // Telegram authenticates with its own per-webhook secret in the route handler.
+  if (path === "/api/external-inquiry" || path === "/api/telegram/schedule") {
+    return NextResponse.next({ request });
+  }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(

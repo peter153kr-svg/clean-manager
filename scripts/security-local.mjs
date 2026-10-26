@@ -24,6 +24,13 @@ const migrations = [
   ["20260819_add_homepage_inquiry_source.sql", "20260819000000_homepage_inquiry_source.sql"],
 ];
 
+// The security-only main branch had five migrations. After integrating the
+// Telegram branch, validate the same CRM against the full six-migration schema.
+const telegramMigration = "20261025_create_telegram_schedule_messages.sql";
+if (existsSync(path.join(root, "supabase/migrations", telegramMigration))) {
+  migrations.push([telegramMigration, "20261025000000_telegram_schedule_messages.sql"]);
+}
+
 function localEnv() {
   const env = { ...process.env };
   // Do not inherit cloud access tokens, production DB URLs or a remote project ref.
@@ -90,7 +97,7 @@ async function prepare() {
 try {
   await prepare();
   if (action !== "prepare") dockerBin = checkDocker();
-  if (action === "prepare") console.log("Prepared five byte-identical migrations with unique local versions and dependency order.");
+  if (action === "prepare") console.log(`Prepared ${migrations.length} byte-identical migrations with unique local versions and dependency order.`);
   if (action === "start") { run(["start"], true); console.log("Local Supabase started (local-only keys omitted)."); }
   if (action === "reset") run(["db", "reset", "--local", "--yes"]);
   if (action === "stop") run(["stop"]);
