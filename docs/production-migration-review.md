@@ -1,5 +1,7 @@
 # 운영 Supabase 마이그레이션 이력·충돌 점검
 
+2026-10-26 후속 준비 현황은 [운영 적용 준비 보고서](telegram-production-readiness.md)를 참조합니다. 읽기 전용 점검 SQL을 확장하고 신규 적용 후보/로컬 검증 runner를 준비했지만, 운영 메타데이터 조회와 후보 SQL의 실제 DB 검증은 아직 완료되지 않았습니다. 아래 Dashboard 관찰은 이전 작업 기록입니다.
+
 ## 운영 Dashboard 읽기 전용 조회 결과
 
 사용자 로그인 후 Supabase Dashboard의 clean-manager 프로젝트를 확인했습니다. 기존 앱의 NEXT_PUBLIC_SUPABASE_URL과 Dashboard 프로젝트가 일치한다는 비교 결과는 true였습니다. URL/키 값은 로그나 보고서에 기록하지 않았습니다.
