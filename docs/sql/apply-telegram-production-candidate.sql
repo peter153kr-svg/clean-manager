@@ -1,4 +1,4 @@
--- REVIEW CANDIDATE ONLY: production metadata and local DB validation pending.
+-- REVIEW CANDIDATE ONLY: local DB validated; production metadata/approval pending.
 -- Requires explicit production DDL approval. Execute the complete file atomically.
 -- Fresh-install only. Repeat execution fails closed without replacing objects.
 -- Never run historical migrations or change migration history with this file.

@@ -36,7 +36,14 @@ let created = false;
 try {
   sql(`CREATE DATABASE ${database};`, false, 'postgres');
   created = true;
-  sql('CREATE SCHEMA IF NOT EXISTS extensions;');
+  // Match the local Supabase bootstrap grants for pgTAP assertions after SET ROLE.
+  sql('CREATE SCHEMA IF NOT EXISTS extensions; GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role;');
+  const candidate = read('docs/sql/apply-telegram-production-candidate.sql');
+  const missing = sql(candidate, true);
+  if (missing.status === 0 || !missing.stderr.includes('trigger function missing')) {
+    throw new Error('Missing prerequisite was not rejected');
+  }
+  console.log('PASS: missing shared trigger function rejected');
   // Fresh local fixture only: never replay these on production.
   for (const name of [
     '20260817_create_customers_and_inquiries.sql',
@@ -54,7 +61,15 @@ try {
     .split('\n').filter((line) => !/^\\(un)?restrict /.test(line)).join('\n');
   const before = snapshot();
   sql(read('docs/sql/inspect-production-migrations-readonly.sql'));
-  const candidate = read('docs/sql/apply-telegram-production-candidate.sql');
+  sql('CREATE TABLE public.telegram_schedule_messages (synthetic_sentinel text);');
+  const partial = sql(candidate, true);
+  if (partial.status === 0 || !partial.stderr.includes('Existing Telegram objects') ||
+      sql("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='telegram_schedule_messages';").stdout.trim() !== 'synthetic_sentinel' ||
+      snapshot() !== before) {
+    throw new Error('Partial installation was not preserved');
+  }
+  sql('DROP TABLE public.telegram_schedule_messages;');
+  console.log('PASS: conflicting partial installation rejected without replacement');
   sql(candidate);
   if (snapshot() !== before) throw new Error('Existing CRM/content schema changed');
   console.log('PASS: first application preserves existing CRM/content schema');
@@ -71,7 +86,8 @@ try {
   console.log('PASS: repeat application rejected before replacement');
   const tests = sql(read('supabase/tests/telegram_schedule.sql')).stdout;
   console.log(tests);
-  if (/not ok|Looks like you failed/.test(tests) || !tests.includes('1..31')) {
+  if (/not ok|Looks like you failed/.test(tests) || !tests.includes('1..31') ||
+      tests.split('\n').filter((line) => /^ok \d+ -/.test(line)).length !== 31) {
     throw new Error('Telegram pgTAP tests failed or did not run');
   }
 } finally {

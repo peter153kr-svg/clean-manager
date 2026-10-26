@@ -2,7 +2,7 @@
 
 ## 판정: 운영 적용 보류
 
-운영 스키마 조회와 신규 적용 SQL의 실제 DB 테스트가 완료되지 않았다. 이 문서는 승인된 운영 적용 결과가 아니다. 운영 DDL/DML, reset/push/repair/migration up, 봇/환경변수 변경, main 병합, Vercel 운영 배포는 실행하지 않았다. 고객 데이터 행은 조회하지 않았다.
+신규 적용 SQL의 실제 로컬 DB 테스트와 후보 적용 후 CRM 회귀는 완료했다. 운영 스키마 조회는 미완료이며 이 문서는 승인된 운영 적용 결과가 아니다. 운영 DDL/DML, reset/push/repair/migration up, 봇/환경변수 변경, main 병합, Vercel 운영 배포는 실행하지 않았다. 운영 고객 데이터 행은 조회하지 않았다. 사용자 후속 지시에 따라 브라우저 작업을 제외하고 로컬 검증만 진행했다.
 
 ## GitHub 및 main 확인
 
@@ -18,7 +18,7 @@
 
 기존 파일에는 컬럼/인덱스/제약/트리거와 전체 public 정책 점검이 부족했다. 이를 추가하고 service_role의 테이블 권한, public 스키마 USAGE, BYPASSRLS, 함수 정의/서명/실행 권한을 조회하도록 보완했다. 함수 정의나 기본값에 비밀값을 하드코딩한 환경이라면 반환 내용을 외부에 게시하지 말고 로컬에서 검토한다. 결과 전체를 PR에 업로드하지 않는다.
 
-이번 세션에는 Supabase 전용 connector가 없고, 로그인된 운영 브라우저의 접근 요청은 `Computer Use app approval timed out`으로 종료됐다. 따라서 **운영 SQL은 실행되지 않았고 운영 테이블/컬럼/인덱스/RLS/함수/권한/이력은 미확인**이다. 이전 문서의 Dashboard `No migrations`는 이력 테이블 부재와 빈 이력을 구별하지 못하며, 운영 스키마 보존의 증거로 사용하지 않는다.
+Supabase 전용 connector가 없고, 최초 브라우저 접근은 시간 초과, 이후 접근은 현재 URL을 확인할 수 없다는 도구 정책 차단으로 종료됐다. 사용자는 브라우저 작업을 제외하도록 지시했다. 따라서 **운영 SQL은 실행되지 않았고 운영 테이블/컬럼/인덱스/RLS/함수/권한/이력은 미확인**이다. 이전 문서의 Dashboard `No migrations`는 이력 테이블 부재와 빈 이력을 구별하지 못하며, 운영 스키마 보존의 증거로 사용하지 않는다.
 
 운영 메타데이터 대조 시 다음을 확인해야 한다.
 
@@ -55,18 +55,33 @@
 | 로컬 도구 안전장치 | 3/3 통과 |
 | 보안 의존성 회귀 | 6/6 통과 |
 | lint | 통과 (격리 빌드 복사본 제거 후 재확인) |
-| Next 16.4.3 빌드 | 격리 복사본에서 `next build --webpack` 성공, TypeScript/정적 생성 20개 완료 |
+| Next 16.4.3 빌드 | 최초 webpack 성공에 이어, 이번 로컬 CRM 설정으로 기본 Turbopack 빌드/TypeScript/정적 생성 20개 성공 |
 | 후보 검증 runner 구문 | `node --check scripts/test-production-candidate-local.mjs` 통과 |
-| 로컬 Supabase 시작 | 실패: dockerDesktopLinuxEngine named pipe 없음 |
-| 후보 SQL 최초 적용/재실행/스키마 보존 검사 | 실행 시도했으나 Docker inspect 단계 차단, DB 명령 미실행 |
-| pgTAP 신규 테이블/RPC 31개 | 실행 불가: Docker 엔진 부재 |
-| 텔레그램 실제 DB 통합 | 실행 불가: Docker 엔진 부재 |
-| 기존 CRM 실제 DB 회귀 | 실행 불가: Docker 엔진 부재 |
-| 운영 metadata 비교 | 미실행: 브라우저 접근 시간 초과 |
+| 읽기 전용 점검 SQL | 일회용 로컬 DB에서 실제 실행 성공 (운영 실행 아님) |
+| 로컬 Supabase 시작 | Docker 29.9.2, clean-manager-local 및 clean-manager-security 기동 성공 |
+| 후보 SQL 선행 조건/충돌/최초 적용/재실행 | 4개 시나리오 통과: 함수 누락 거부, 부분 적용 거부, 최초 적용, 재실행 거부 |
+| 후보 적용 전후 스키마 | 기존 CRM/콘텐츠 8개 테이블 schema-only dump 동일. 거부된 재실행 전후 전체 public schema 동일 |
+| 후보 일회용 DB pgTAP | 신규 테이블/RLS/RPC/중복/역순/권한 31/31 통과 |
+| 기존 로컬 SQL 테스트 | 31/31 통과 |
+| 텔레그램 실제 DB 통합 | 9/9 통과 (후보 적용 스키마에서 최종 재검증) |
+| 기존 CRM 실제 DB 회귀 | 후보 SQL 적용 후 14/14 통과, 실패/취소/스킵 0 |
+| 운영 metadata 비교 | 미실행: 사용자 지시로 브라우저 제외 |
 
 빌드는 `.env.local`을 포함하지 않은 추적 파일 복사본에서 수행했다. cloud 관련 프로세스 환경변수도 제거하고 loopback URL/가짜 build-only publishable key를 사용했다. 실제 운영 값은 읽거나 변경하지 않았다. 첫 빌드는 파일 생성 EPERM으로 중단됐으나 격리 복사본에 대한 권한 재시도로 성공했다. 복사본 내 생성물이 root lint에 잡힌 중간 실패가 있어 빌드 복사본을 제거한 뒤 lint를 다시 실행했다. 원본 앱/설정 코드는 변경하지 않았다. 복사본 위치에 따른 workspace lockfile 경고가 있었으며 production 배포 검증을 의미하지 않는다. 기존 MODULE_TYPELESS_PACKAGE_JSON 경고는 테스트 실패가 아니다.
 
-이전 날짜의 72개 통과 기록을 이번 후보 SQL 테스트 통과로 재사용하지 않는다.
+이번 실제 실행으로 결과를 갱신했다. 이전 날짜의 72개 통과 기록을 이번 후보 SQL 테스트 통과로 재사용하지 않았다.
+
+### 후보 SQL 기반 로컬 검증 상세
+
+검증 runner 첫 실행에서 새 DB의 extensions 스키마에 테스트 역할 USAGE가 없어 SET ROLE 이후 pgTAP `is` 함수 해석에 실패했다. 운영 SQL의 문제가 아닌 로컬 bootstrap 누락이었다. runner의 일회용 DB에만 anon/authenticated/service_role의 extensions USAGE를 추가하고 재실행하여 31개 모두 통과했다. 운영 권한은 변경하지 않았다.
+
+runner는 누락된 set_updated_at()와 충돌하는 sentinel 테이블을 합성하여 사전 중단을 검증한 뒤 실제 후보 SQL을 적용한다. pg_dump는 schema-only로 사용하고, 테스트 DB는 finally에서 삭제했다. 검증 도구의 TAP 판정도 정확히 31개 성공을 요구하도록 보완했다.
+
+실제 API 회귀용 로컬 프로젝트 두 개는 대상 테이블과 Auth 사용자 집계가 모두 0임을 먼저 확인했다. 원본 SQL은 그대로 두고 무시되는 로컬 workdir의 여섯 번째 fixture 복사본만 후보 SQL로 교체한 뒤 `db reset --local --yes`로 테스트 DB만 재구성했다. 기존 5개 SQL 재생은 이 로컬 fixture에 한정했다. CRM DB/API 56322/56321, 텔레그램 DB/API 55322/55321을 사용했다. 운영 reset/push/repair/migration up은 실행하지 않았다.
+
+CRM 검증은 `.security-local/validation`의 운영 env 없는 추적 파일 복사본에서 실행했다. 로컬 CLI가 반환한 키만 메모리로 전달했으며 출력/커밋하지 않았다. 고객 생성/수정, 홈페이지 문의와 상태 변경, 작업 예약/진행/완료, 매출 생성/수정/중복 완료, 삭제 방지, 음수 비용/익명 읽기 차단, 로그인 CRM 화면/보호 경로/홈페이지 API, 로그아웃을 검증했다. 실제 봇이나 운영 API를 호출하지 않았다.
+
+최종 집계에서 두 로컬 DB의 customers/inquiries/jobs/sales/telegram_schedule_messages/telegram_schedule_revisions 및 auth.users가 모두 0이었다. runner의 임시 telegram_candidate_* DB도 0개였다. 검증 복사본과 node_modules junction은 제거하고 원본 의존성은 유지했다. 두 로컬 Supabase 프로젝트를 종료했다.
 
 ## 로컬 검증 재개 절차
 
@@ -97,4 +112,4 @@
 - DB 전체 복원은 기존 CRM의 새 변경까지 되돌릴 수 있다. 격리 복원 후 필요한 데이터만 복구하는 계획을 담당자와 승인하고, 운영 reset을 복구 수단으로 사용하지 않는다.
 - CLI migration history 정합화는 별도 계획/승인 대상으로 남긴다. 이번 SQL은 history를 기록하거나 repair하지 않는다.
 
-남은 핵심 위험은 운영 메타데이터 미검증, 후보 SQL 실제 DB 미검증, 백업/복구 미확인이다. 기존 설계의 동일 초 수정본 구분 한계와 실제 봇 네트워크 E2E 미검증도 남아 있다. 이 세 가지 주요 게이트가 해소되기 전 운영 적용은 보류한다.
+남은 핵심 위험은 운영 메타데이터 미검증과 백업/복구 미확인이다. 후보 SQL의 로컬 검증은 통과했으나 운영 스키마와의 충돌 부재를 증명하지는 않는다. 기존 설계의 동일 초 수정본 구분 한계와 실제 봇 네트워크 E2E 미검증도 남아 있다. 운영 메타데이터 대조와 백업/복구 확인, 최종 SQL 운영 적용 승인이 완료되기 전 운영 적용은 보류한다.
