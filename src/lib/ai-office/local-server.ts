@@ -1,4 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+export async function isOfficeAdmin(userId:string){
+  if(!localEnabled())return false;
+  const {data,error}=await createAdminClient().from('dev_ai_office_admins').select('user_id').eq('user_id',userId).maybeSingle();
+  return !error&&Boolean(data);
+}
 export function localEnabled(){
   try{const url=new URL(process.env.NEXT_PUBLIC_SUPABASE_URL??'');
     return process.env.AI_OFFICE_DEV_MODE==='synthetic'&&process.env.VERCEL_ENV!=='production'&&

@@ -52,9 +52,9 @@ export async function crmCases(t,c){
   await t.test('Telegram edits require re-review and never overwrite or delete linked CRM jobs',async()=>{
     const record=await admin.from('telegram_schedule_messages').select('message_id,message_text').eq('id',ambiguous.id).single();
     assert.equal((await webhook(record.data.message_id,record.data.message_text.replace('30만원','40만원'),5)).status,200);
-    const changed=(await list()).find(i=>i.id===ambiguous.id);assert.equal(changed.approved,null);assert.equal(changed.link.job_id,createdJob);
+    const changed=(await list()).find(i=>i.id===ambiguous.id);assert.equal(changed.pendingChange,true);assert.equal(changed.link.job_id,createdJob);
     assert.equal((await link(ambiguous,chosen,'')).status,409);
-    assert.equal((await save(changed)).status,200);assert.equal((await link(changed,chosen,'')).status,409);
+    assert.equal((await save(changed)).status,409);assert.equal((await link(changed,chosen,'')).status,409);
     assert.equal((await admin.from('jobs').select('expected_amount').eq('id',createdJob).single()).data.expected_amount,300000);
   });
   await t.test('CRM API enforces origin, confirmation, login and direct RPC permissions',async()=>{

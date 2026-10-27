@@ -1,5 +1,8 @@
 # AI 일정 비서 V1 — CRM 연결 및 모바일 검증
 
+> 78개 검증 시점의 기록이다. 관리자 권한과 변경 승인에 대한 최신 결과는
+> [관리자·변경 승인 보고서](ai-office-admin-change-v1.md)를 따른다.
+
 ## 범위
 
 PR #4 / `codex/ai-office-development`의 후속 개발이다. PR #1 브랜치와 main은

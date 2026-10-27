@@ -30,11 +30,13 @@ RETURNS uuid LANGUAGE plpgsql SECURITY INVOKER SET search_path=public,pg_temp AS
 DECLARE source public.telegram_schedule_messages; approval public.dev_ai_schedule_approvals;
   linked public.dev_ai_schedule_job_links; customer uuid; job uuid;
 BEGIN
+  PERFORM public.dev_require_ai_admin(p_actor);
   PERFORM pg_advisory_xact_lock(20261027,1);
   SELECT * INTO source FROM public.telegram_schedule_messages WHERE id=p_id FOR UPDATE;
   SELECT * INTO approval FROM public.dev_ai_schedule_approvals WHERE message_id=p_id;
   IF source.id IS NULL OR approval.message_id IS NULL OR source.status<>'reviewed'
-    OR source.revision_at<>p_revision OR approval.revision_at<>p_revision
+    OR (source.revision_at<>p_revision AND NOT EXISTS(SELECT 1 FROM public.dev_ai_schedule_decisions d
+      WHERE d.message_id=p_id AND d.revision_at=source.revision_at AND d.decision='reject')) OR approval.revision_at<>p_revision
     OR approval.fields IS DISTINCT FROM p_fields THEN
     RAISE EXCEPTION 'stale_approval' USING ERRCODE='P0001';
   END IF;
@@ -64,9 +66,9 @@ BEGIN
   IF EXISTS(SELECT 1 FROM public.jobs j WHERE j.customer_id=customer AND j.job_date=(p_fields->>'date')::date
     AND j.start_time=(p_fields->>'time')::time AND regexp_replace(coalesce(j.address,''),'\s','','g')=regexp_replace(p_fields->>'address','\s','','g')
     AND j.status<>'cancelled') THEN RAISE EXCEPTION 'existing_job_candidate' USING ERRCODE='P0001'; END IF;
-  INSERT INTO public.jobs(customer_id,job_date,start_time,service_type,address,apartment_name,expected_amount,status,memo)
+  INSERT INTO public.jobs(customer_id,job_date,start_time,service_type,address,apartment_name,expected_amount,status,memo,work_scope)
     VALUES(customer,(p_fields->>'date')::date,(p_fields->>'time')::time,p_fields->>'service',p_fields->>'address',
-      p_fields->>'site',(p_fields->>'amount')::integer,'scheduled','AI 일정 검토 승인 · 소요시간 '||(p_fields->>'duration')||'분') RETURNING id INTO job;
+      p_fields->>'site',(p_fields->>'amount')::integer,'scheduled','AI 일정 검토 승인 · 소요시간 '||(p_fields->>'duration')||'분',p_fields->>'scope') RETURNING id INTO job;
   INSERT INTO public.dev_ai_schedule_job_links(message_id,job_id,customer_id,revision_at,fields,created_by)
     VALUES(p_id,job,customer,p_revision,p_fields,p_actor);
   RETURN job;

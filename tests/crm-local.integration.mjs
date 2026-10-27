@@ -44,6 +44,7 @@ test("CRM regression against an isolated local database", async (t) => {
   const password = randomBytes(24).toString("base64url");
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   assert.equal(created.error, null);
+  assert.equal((await admin.from('dev_ai_office_admins').insert({user_id:created.data.user.id})).error,null);
   let customer, inquiry, job, sale, secondJob;
   t.after(async () => {
     if (customer) {

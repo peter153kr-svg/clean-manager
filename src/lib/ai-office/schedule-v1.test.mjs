@@ -28,6 +28,10 @@ test('numeric validation rejects NaN fractions negative and unknown duration',()
   for(const amount of [null,-1,NaN,1.1,1e10])assert.ok(validateFields({...f,amount}).length);
   for(const duration of [null,0,-1,1.5,1441])assert.ok(validateFields({...f,duration}).length);
 });
+test('work scope is separate from service and never parsed as the start time',()=>{
+  const result=extractSchedule(text+'\n작업 범위: 2시간 창틀 작업','2026-10-27');
+  assert.equal(result.fields.scope,'2시간 창틀 작업');assert.equal(result.fields.service,'입주청소');assert.deepEqual(result.issues,[]);
+});
 test('overlap and semantic duplicates detected across separate message IDs',()=>{
   const f=extractSchedule(text,'2026-10-27').fields;
   assert.deepEqual(scheduleWarnings(f,[f]),['중복 일정 후보','작업 시간 충돌']);

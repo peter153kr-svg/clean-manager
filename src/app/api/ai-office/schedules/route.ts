@@ -4,6 +4,7 @@ import { extractSchedule,koreanDay,validateFields } from '@/lib/ai-office/schedu
 import type { ScheduleFields } from '@/lib/ai-office/schedule-v1';
 import { POST as telegramIntake } from '@/app/api/telegram/schedule/route';
 import { randomInt } from 'node:crypto';
+import {isOfficeAdmin} from '@/lib/ai-office/local-server';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -28,18 +29,25 @@ function sameOrigin(request:Request){
 }
 export async function GET(){
   if(!enabled())return reply({error:'local_only'},404);
-  if(!await authorize())return reply({error:'login_required'},401);
+  const user=await authorize();if(!user)return reply({error:'login_required'},401);
+  const isAdmin=await isOfficeAdmin(user.id);
   const db=createAdminClient();
-  const [messages,approvals,links]=await Promise.all([
+  const [messages,approvals,links,decisions]=await Promise.all([
     db.from('telegram_schedule_messages').select('id,revision_at,posted_at,message_text,status').order('posted_at',{ascending:false}).limit(201),
     db.from('dev_ai_schedule_approvals').select('message_id,revision_at,fields'),
     db.from('dev_ai_schedule_job_links').select('message_id,job_id,revision_at,fields'),
+    db.from('dev_ai_schedule_decisions').select('message_id,revision_at,decision'),
   ]);
-  if(messages.error||approvals.error||links.error)return reply({error:'local_schema_unavailable'},503);
+  if(messages.error||approvals.error||links.error||decisions.error)return reply({error:'local_schema_unavailable'},503);
   if(messages.data.length>200)return reply({error:'inbox_limit_reached'},409);
-  return reply({items:messages.data.map(m=>{
-    const approval=approvals.data.find(a=>a.message_id===m.id&&a.revision_at===m.revision_at&&m.status==='reviewed');
-    return {...m,review:extractSchedule(m.message_text??'',koreanDay(m.posted_at)),approved:approval?.fields??null,
+  return reply({isAdmin,items:messages.data.map(m=>{
+    const approval=approvals.data.find(a=>a.message_id===m.id);
+    const decision=decisions.data.find(d=>d.message_id===m.id&&d.revision_at===m.revision_at);
+    const review=extractSchedule(m.message_text??'',koreanDay(m.posted_at));
+    if(review.fields.scope===undefined&&typeof approval?.fields?.scope==='string')review.fields.scope=approval.fields.scope;
+    return {...m,review,approved:approval?.fields??null,
+      baseRevision:approval?.revision_at??null,decision:decision?.decision??null,
+      pendingChange:Boolean(approval&&approval.revision_at!==m.revision_at&&!decision),
       link:links.data.find(link=>link.message_id===m.id)??null};
   })});
 }
@@ -47,6 +55,7 @@ export async function POST(request:Request){
   if(!enabled())return reply({error:'local_only'},404);
   if(!sameOrigin(request))return reply({error:'origin_rejected'},403);
   const user=await authorize();if(!user)return reply({error:'login_required'},401);
+  if(!await isOfficeAdmin(user.id))return reply({error:'admin_required'},403);
   // Bound the actual byte stream, not just an untrusted Content-Length header.
   if(!request.body)return reply({error:'invalid_input'},400);
   const reader=request.body.getReader();let raw='';let bytes=0;const decoder=new TextDecoder();
@@ -65,6 +74,8 @@ export async function POST(request:Request){
   if(error){
     if(error.message.includes('stale_revision'))return reply({error:'stale_revision'},409);
     if(error.message.includes('schedule_conflict'))return reply({error:'schedule_conflict'},409);
+    if(error.message.includes('change_approval_required'))return reply({error:'change_approval_required'},409);
+    if(error.message.includes('admin_required'))return reply({error:'admin_required'},403);
     return reply({error:'approval_failed'},503);
   }
   return reply({ok:true});
@@ -73,7 +84,8 @@ export async function POST(request:Request){
 export async function PUT(request:Request){
   if(!enabled())return reply({error:'local_only'},404);
   if(!sameOrigin(request))return reply({error:'origin_rejected'},403);
-  if(!await authorize())return reply({error:'login_required'},401);
+  const user=await authorize();if(!user)return reply({error:'login_required'},401);
+  if(!await isOfficeAdmin(user.id))return reply({error:'admin_required'},403);
   // Only a fixed fake channel is supported; never expose the webhook secret to the browser.
   if(process.env.TELEGRAM_SCHEDULE_CHANNEL_ID!=='-1000000000001'||!process.env.TELEGRAM_SCHEDULE_WEBHOOK_SECRET)
     return reply({error:'synthetic_intake_unconfigured'},503);

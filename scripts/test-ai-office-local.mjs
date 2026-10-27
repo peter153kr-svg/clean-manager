@@ -19,7 +19,7 @@ if(info.API_URL!=='http://127.0.0.1:56321'||!info.ANON_KEY||!info.SERVICE_ROLE_K
 // Development fixture stays outside supabase/migrations; never invoke db push/reset.
 // Apply twice to verify repeatable local setup without replaying the CRM baseline.
 for(let attempt=0;attempt<2;attempt++){
- for(const fixture of ['ai-schedule-v1.sql','ai-schedule-crm-v1.sql']){
+ for(const fixture of ['ai-office-admin-role.sql','ai-schedule-v1.sql','ai-schedule-crm-v1.sql','ai-schedule-changes.sql']){
   const schema=spawnSync('docker',['exec','-i','supabase_db_clean-manager-security','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1'],
     {input:readFileSync(path.join(root,'supabase/dev',fixture)),encoding:'utf8',env,windowsHide:true});
   if(schema.status!==0)throw new Error('Local V1 fixture setup failed; no remote command was run');

@@ -12,6 +12,7 @@ export async function mobileCases(t,{admin,base,cookies,ids}){
     await t.test(`real Edge ${width}px: touch/input/review/edit/calendar/briefing/reload without clipping`,async()=>{
       const context=await browser.newContext({viewport:{width,height},isMobile:width<600,hasTouch:width<=768});
       const text=`2093-02-0${index} 09:00\n고객명: 합성 모바일 ${width}\n주소: 합성시 모바일 테스트로 ${width}\n현장: 합성 모바일 ${width}\n작업 종류: 입주청소\n소요시간: 60분\n금액: 35만원`;
+      let messageRecord=null;
       try{
         await context.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)?route.continue():route.abort();});
         await context.addCookies(cookies.map(c=>({name:c.name,value:c.value,url:base,sameSite:'Lax'})));
@@ -22,6 +23,8 @@ export async function mobileCases(t,{admin,base,cookies,ids}){
         await page.getByLabel('V1 합성 메시지',{exact:true}).fill(text);
         const received=page.waitForResponse(r=>r.url().endsWith('/api/ai-office/schedules')&&r.request().method()==='PUT');
         await click(page.getByRole('button',{name:'합성 메시지 수신',exact:true}));assert.equal((await received).status(),200);
+        const source=await admin.from('telegram_schedule_messages').select('id,channel_id,message_id,posted_at,revision_at').eq('message_text',text).single();assert.equal(source.error,null);
+        messageRecord=source.data;ids.push(messageRecord.id);
         const article=page.locator('article').filter({hasText:`합성 모바일 ${width}`});
         await article.getByRole('button',{name:'정보 검토·보완'}).waitFor();
         await click(article.getByRole('button',{name:'정보 검토·보완'}));
@@ -57,13 +60,37 @@ export async function mobileCases(t,{admin,base,cookies,ids}){
         const linked=page.waitForResponse(r=>r.url().endsWith('/api/ai-office/crm')&&r.request().method()==='POST');
         await click(article.getByRole('button',{name:'확인 후 CRM 작업 생성'}));assert.equal((await linked).status(),200);
         await article.getByRole('link',{name:'연결된 CRM 작업 보기'}).waitFor();
+        const jobLink=(await admin.from('dev_ai_schedule_job_links').select('job_id').eq('message_id',messageRecord.id).single()).data;
+        const changedText=text.replace('35만원','40만원')+'\n작업 범위: 합성 변경 작업 범위';
+        const revision=Date.parse(messageRecord.revision_at);
+        const deliver=async(content,seconds)=>{
+          const result=await admin.rpc('ingest_telegram_schedule_message',{p_channel_id:messageRecord.channel_id,p_message_id:messageRecord.message_id,
+            p_posted_at:messageRecord.posted_at,p_revision_at:new Date(revision+seconds*1000).toISOString(),p_edited_at:new Date(revision+seconds*1000).toISOString(),p_message_text:content,p_attachments:[]});assert.equal(result.error,null);
+          await click(page.getByRole('button',{name:'새로고침',exact:true}));await article.getByText(/변경 승인 대기/).waitFor();
+          await click(article.getByRole('button',{name:'정보 검토·보완'}));
+          const comparison=page.getByRole('region',{name:'일정 변경 비교'});await comparison.getByText('기존 승인본 → 변경안',{exact:true}).waitFor();
+          assert.ok((await page.evaluate(()=>document.documentElement.scrollWidth))<=width+1,'change comparison fits viewport');
+          await mkdir('.security-local/mobile-artifacts',{recursive:true});
+          await comparison.screenshot({path:`.security-local/mobile-artifacts/change-${width}.png`});
+          await click(comparison.getByText('변경 전후와 처리 대상을 확인했습니다.',{exact:true}));return comparison;
+        };
+        let comparison=await deliver(changedText,10);
+        const changeApproved=page.waitForResponse(r=>r.url().endsWith('/api/ai-office/changes')&&r.request().method()==='POST');
+        await click(comparison.getByRole('button',{name:'변경 승인·작업 반영'}));assert.equal((await changeApproved).status(),200);
+        await page.getByRole('region',{name:'관리자 일정 검토'}).waitFor({state:'hidden'});
+        assert.equal((await admin.from('jobs').select('expected_amount').eq('id',jobLink.job_id).single()).data.expected_amount,400000);
+        comparison=await deliver(changedText.replace('40만원','50만원'),20);
+        const rejected=page.waitForResponse(r=>r.url().endsWith('/api/ai-office/changes')&&r.request().method()==='POST');
+        await click(comparison.getByRole('button',{name:'요청 반려·기존 유지'}));assert.equal((await rejected).status(),200);
+        await article.getByText(/변경 반려 · 기존 유지/).waitFor();
+        assert.equal((await admin.from('jobs').select('expected_amount').eq('id',jobLink.job_id).single()).data.expected_amount,400000);
         const finalWidth=await page.evaluate(()=>document.documentElement.scrollWidth);assert.ok(finalWidth<=width+1);
         await mkdir('.security-local/mobile-artifacts',{recursive:true});
         await page.screenshot({path:`.security-local/mobile-artifacts/${width}.png`,fullPage:true});
         assert.deepEqual(pageErrors,[]);
       }finally{
-        const source=await admin.from('telegram_schedule_messages').select('id').eq('message_text',text);
-        ids.push(...(source.data??[]).map(i=>i.id));await context.close();
+        if(!messageRecord){const source=await admin.from('telegram_schedule_messages').select('id').eq('message_text',text);ids.push(...(source.data??[]).map(i=>i.id));}
+        await context.close();
       }
     });
   }}finally{await browser.close();}

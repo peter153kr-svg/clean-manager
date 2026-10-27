@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { crmCases } from './ai-office-crm-cases.mjs';
 import { mobileCases } from './ai-office-mobile-cases.mjs';
+import { changeCases } from './ai-office-change-cases.mjs';
 
 const endpoint=process.env.CLEAN_MANAGER_LOCAL_API_URL;
 assert.equal(endpoint,'http://127.0.0.1:56321');
@@ -33,6 +34,7 @@ test('AI lab uses local synthetic Auth, preserves protection and requires develo
   const password=randomBytes(24).toString('base64url');
   const created=await admin.auth.admin.createUser({email,password,email_confirm:true});
   assert.equal(created.error,null);
+  assert.equal((await admin.from('dev_ai_office_admins').insert({user_id:created.data.user.id})).error,null);
   t.after(async()=>{const r=await admin.auth.admin.deleteUser(created.data.user.id);assert.equal(r.error,null);});
   const cookies=[];
   const ssr=createServerClient(endpoint,process.env.CLEAN_MANAGER_LOCAL_ANON_KEY,{cookies:{getAll:()=>cookies,
@@ -45,7 +47,8 @@ test('AI lab uses local synthetic Auth, preserves protection and requires develo
     const links=await admin.from('dev_ai_schedule_job_links').select('job_id,customer_id').in('message_id',ids);assert.equal(links.error,null);
     jobIds.push(...links.data.map(l=>l.job_id));customerIds.push(...links.data.map(l=>l.customer_id));
     assert.equal((await admin.from('dev_ai_schedule_job_links').delete().in('message_id',ids)).error,null);
-    if(jobIds.length)assert.equal((await admin.from('jobs').delete().in('id',[...new Set(jobIds)])).error,null);
+    if(jobIds.length){assert.equal((await admin.from('sales').delete().in('job_id',[...new Set(jobIds)])).error,null);
+      assert.equal((await admin.from('jobs').delete().in('id',[...new Set(jobIds)])).error,null);}
     if(customerIds.length)assert.equal((await admin.from('customers').delete().in('id',[...new Set(customerIds)])).error,null);
     // PR #1 keeps revisions independently; deleting the inbox does not cascade to them.
     const source=await admin.from('telegram_schedule_messages').select('message_id').in('id',ids);assert.equal(source.error,null);
@@ -108,11 +111,13 @@ test('AI lab uses local synthetic Auth, preserves protection and requires develo
       assert.equal((await save(duplicate,{...duplicate.review.fields,time:'10:30'})).status,409);
       assert.equal((await save(duplicate,{...duplicate.review.fields,time:'11:00'})).status,200);
     });
-    await t.test('newer webhook edit removes approved calendar entry and rejects an open stale review',async()=>{
+    await t.test('newer webhook edit preserves active approval and rejects an open stale review',async()=>{
       assert.equal((await webhook(messageId,source.replace('45만원','50만원'),1)).status,200);
-      const changed=(await list()).find(i=>i.id===item.id);assert.equal(changed.approved,null);assert.equal(changed.review.fields.amount,500000);
+      const changed=(await list()).find(i=>i.id===item.id);assert.equal(changed.pendingChange,true);assert.equal(changed.approved.amount,450000);assert.equal(changed.review.fields.amount,500000);
       assert.equal((await save(item)).status,409);item=changed;
-      assert.equal((await save(item)).status,200);
+      assert.equal((await fetch(base+'/api/ai-office/changes',{method:'POST',headers:jsonHeaders,body:JSON.stringify({id:item.id,
+        revision:item.revision_at,baseRevision:item.baseRevision,baseFields:item.approved,fields:item.review.fields,
+        action:'approve',customerId:null,confirmed:true})})).status,200);
       assert.equal((await webhook(messageId,source)).status,200);
       assert.equal((await list()).find(i=>i.id===item.id).approved.amount,500000);
     });
@@ -141,6 +146,7 @@ test('AI lab uses local synthetic Auth, preserves protection and requires develo
       }
     });
     await crmCases(t,{admin,ssr,base,headers,jsonHeaders,list,save,webhook,messageId,ids,customerIds,jobIds,actor:created.data.user.id});
+    await changeCases(t,{admin,ssr,base,headers,jsonHeaders,list,save,webhook,messageId,ids,customerIds,actor:created.data.user.id});
     await mobileCases(t,{admin,base,cookies,ids});
   });
   await withServer(true,async()=>{
