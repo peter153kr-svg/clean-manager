@@ -3,7 +3,9 @@ import { useCallback,useEffect,useState } from 'react';
 import { scheduleWarnings,validateFields } from '@/lib/ai-office/schedule-v1';
 import type { ScheduleFields,ScheduleReview } from '@/lib/ai-office/schedule-v1';
 import { shiftDay } from '@/lib/ai-office/engine';
-type Item={id:string;revision_at:string;message_text:string;status:string;review:ScheduleReview;approved:ScheduleFields|null};
+import CrmReview from './crm-review';
+type Item={id:string;revision_at:string;message_text:string;status:string;review:ScheduleReview;approved:ScheduleFields|null;
+  link:{job_id:string;revision_at:string;fields:ScheduleFields}|null};
 const api='/api/ai-office/schedules';
 const labels={date:'날짜',time:'시작 시간',customer:'고객명',address:'주소',site:'현장명',service:'작업 종류',amount:'예상 금액(원)',duration:'소요시간(분)'};
 const button='min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40';
@@ -14,7 +16,9 @@ export default function ScheduleV1({day,briefingOnly=false}:{day:string;briefing
   const [items,setItems]=useState<Item[]>([]);const [notice,setNotice]=useState('로컬 수신함 연결 중');
   const [busy,setBusy]=useState(false);const [text,setText]=useState(`${day} 오전 9시\n고객명: 합성 고객 A\n주소: 합성시 테스트로 1\n현장: 합성 아파트 A\n작업 종류: 입주청소\n소요시간: 120분\n금액: 45만원`);
   const [review,setReview]=useState<{item:Item;fields:ScheduleFields}|null>(null);
-  const [selected,setSelected]=useState('');const [month,setMonth]=useState(day.slice(0,7));
+  const [selected,setSelected]=useState('');const [monthOffset,setMonthOffset]=useState(0);
+  const monthDate=new Date(day.slice(0,7)+'-01T00:00:00Z');monthDate.setUTCMonth(monthDate.getUTCMonth()+monthOffset);
+  const month=monthDate.toISOString().slice(0,7);
   const load=useCallback(async()=>{
     const response=await fetch(api,{cache:'no-store'});const data=await response.json();
     if(!response.ok)throw new Error(errors[data.error]??'로컬 수신함을 불러오지 못했습니다.');
@@ -36,13 +40,13 @@ export default function ScheduleV1({day,briefingOnly=false}:{day:string;briefing
       if(method==='POST')setReview(null);
     }catch(e){setNotice(e instanceof Error?e.message:'요청 실패');}finally{setBusy(false);}
   }
-  const moveMonth=(delta:number)=>{const d=new Date(month+'-01T00:00:00Z');d.setUTCMonth(d.getUTCMonth()+delta);setMonth(d.toISOString().slice(0,7));setSelected('');};
+  const moveMonth=(delta:number)=>{setMonthOffset(value=>value+delta);setSelected('');};
   return <section className="space-y-5" aria-label="일정관리 V1">
     <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4"><h2 className="font-bold">일정관리 V1 · 로컬 DB 연결</h2>
       <p className="mt-2 text-sm">합성 텔레그램 수신 → 정보 추출 → 관리자 검토 → 승인 달력 → 일일 브리핑</p>
       <p className="mt-1 text-xs">실제 고객정보 입력 금지. 승인 기록은 로컬 DB에 저장됩니다. 위 실험용 직원 화면과 데이터는 별도입니다.</p></div>
     <p role="status" aria-live="polite" className="text-sm text-blue-800">{notice}</p>
-    {!briefingOnly&&<><div className="grid gap-4 lg:grid-cols-2">
+    {!briefingOnly&&<><div className="grid min-w-0 gap-4 lg:grid-cols-2">
       <div className="rounded-xl border bg-white p-4"><h3 className="font-semibold">합성 텔레그램 일정 접수</h3>
         <label className="mt-3 block text-sm">메시지 원문<textarea aria-label="V1 합성 메시지" rows={9} maxLength={10000} value={text} onChange={e=>setText(e.target.value)} className="mt-2 w-full rounded-lg border p-3"/></label>
         <button className={button+' mt-3'} disabled={busy} onClick={()=>send('PUT',{text})}>합성 메시지 수신</button>
@@ -54,6 +58,9 @@ export default function ScheduleV1({day,briefingOnly=false}:{day:string;briefing
           {!item.approved&&<p className="mt-1 text-xs text-amber-800">{item.review.issues.join(' · ')}</p>}
           {!item.approved&&scheduleWarnings(item.review.fields,items.filter(i=>i.id!==item.id&&i.status!=='ignored').map(i=>i.approved??i.review.fields)).map(w=><p key={w} className="text-xs text-red-700">{w} · 다른 검토 대기 일정 포함</p>)}
           <button className={button+' mt-2'} disabled={busy} onClick={()=>setReview({item,fields:{...(item.approved??item.review.fields)}})}>정보 검토·보완</button>
+          {item.link&&<p className="mt-2 break-words text-sm text-blue-800"><a href={'/jobs/'+item.link.job_id} className="underline">연결된 CRM 작업 보기</a>
+            {item.link.revision_at!==item.revision_at||!item.approved||JSON.stringify(item.link.fields)!==JSON.stringify(item.approved)?' · 변경 내용 재검토 필요 · 기존 작업 유지':' · 작업 연결됨'}</p>}
+          {item.approved&&!item.link&&<CrmReview key={item.id+item.revision_at+JSON.stringify(item.approved)} id={item.id} onLinked={load}/>}
         </article>)}{!items.length&&<p className="text-sm">수신된 합성 일정이 없습니다.</p>}</div></div>
     </div>
     {review&&<section className="rounded-xl border-2 border-blue-300 bg-white p-4" aria-label="관리자 일정 검토">
@@ -75,7 +82,7 @@ export default function ScheduleV1({day,briefingOnly=false}:{day:string;briefing
         aria-label={`${date} 승인 일정 ${count}건`} aria-pressed={selected===date} onClick={()=>setSelected(date)}
         className={`min-h-14 rounded border p-1 text-sm ${selected===date?'border-blue-600 bg-blue-50':'border-slate-200'} ${date.startsWith(month)?'':'text-slate-400'}`}>
         {Number(date.slice(-2))}<span className="block text-xs">{count?`${count}건`:''}</span></button>;})}</div>
-      <button className="mt-3 text-sm text-blue-700" onClick={()=>setSelected('')}>전체 승인 일정 보기</button>
+      <button className="mt-3 min-h-11 text-sm text-blue-700" onClick={()=>setSelected('')}>전체 승인 일정 보기</button>
       {approved.filter(a=>!selected||a.date===selected).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(a=><div key={a.id} className="mt-3 break-words rounded-lg bg-slate-50 p-3 text-sm">
         <b>{a.date} {a.time} · {a.site}</b><p>{a.customer} · {a.address}</p><p>{a.service} · {a.duration}분 · {a.amount?.toLocaleString('ko-KR')}원</p></div>)}
     </section></>}

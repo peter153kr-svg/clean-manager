@@ -69,11 +69,11 @@ export default function OfficeLab({initialDay}:{initialDay:string}){
         <p className="mt-2 text-sm text-slate-500">일정 접수부터 대표 보고, 매출 구분, 콘텐츠 기획까지 확인합니다.</p></div>
       <label className="text-sm text-slate-600">보고 기준일 (한국 시간)
         <input aria-label="보고 기준일" type="date" value={day} onChange={e=>{if(validDay(e.target.value)){setDay(e.target.value);setSelectedDate('');setContentReviewed(false);}}}
-          className="ml-2 rounded-lg border border-slate-200 bg-white p-2"/></label>
+          className="ml-2 min-h-11 rounded-lg border border-slate-200 bg-white p-2"/></label>
     </header>
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
       합성 데이터 전용 · 실제 고객정보를 입력하지 마세요.
-      <span className="mt-1 block text-xs">일정관리 V1은 로컬 DB에 저장됩니다. 아래 직원 실험 화면은 새로고침 시 초기화됩니다. 실제 봇·AI API·CRM 원장·외부 발송은 연결하지 않았습니다.</span>
+      <span className="mt-1 block text-xs">일정관리 V1과 승인 후 CRM 작업 연결은 로컬 DB에 저장됩니다. 아래 직원 실험 화면은 새로고침 시 초기화됩니다. 실제 봇·유료 AI API·운영 CRM·외부 발송은 연결하지 않았습니다.</span>
     </div>
     <nav aria-label="AI 직원 선택" className="flex flex-wrap gap-2">
       {([['schedule','일정관리 직원'],['chief','AI 총괄실장'],['revenue','고객·매출 직원'],['content','블로그·릴스 직원']] as const).map(([value,label])=>

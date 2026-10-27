@@ -5,6 +5,8 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
+import { crmCases } from './ai-office-crm-cases.mjs';
+import { mobileCases } from './ai-office-mobile-cases.mjs';
 
 const endpoint=process.env.CLEAN_MANAGER_LOCAL_API_URL;
 assert.equal(endpoint,'http://127.0.0.1:56321');
@@ -38,7 +40,13 @@ test('AI lab uses local synthetic Auth, preserves protection and requires develo
   assert.equal((await ssr.auth.signInWithPassword({email,password})).error,null);
   const headers={cookie:cookies.map(v=>`${v.name}=${v.value}`).join('; ')};
   const ids=[];
+  const customerIds=[];const jobIds=[];
   t.after(async()=>{if(ids.length){
+    const links=await admin.from('dev_ai_schedule_job_links').select('job_id,customer_id').in('message_id',ids);assert.equal(links.error,null);
+    jobIds.push(...links.data.map(l=>l.job_id));customerIds.push(...links.data.map(l=>l.customer_id));
+    assert.equal((await admin.from('dev_ai_schedule_job_links').delete().in('message_id',ids)).error,null);
+    if(jobIds.length)assert.equal((await admin.from('jobs').delete().in('id',[...new Set(jobIds)])).error,null);
+    if(customerIds.length)assert.equal((await admin.from('customers').delete().in('id',[...new Set(customerIds)])).error,null);
     // PR #1 keeps revisions independently; deleting the inbox does not cascade to them.
     const source=await admin.from('telegram_schedule_messages').select('message_id').in('id',ids);assert.equal(source.error,null);
     if(source.data.length){const revisions=await admin.from('telegram_schedule_revisions').delete()
@@ -132,11 +140,22 @@ test('AI lab uses local synthetic Auth, preserves protection and requires develo
         assert.ok((await db.rpc('dev_approve_ai_schedule',{p_id:item.id,p_revision:item.revision_at,p_fields:item.review.fields,p_actor:created.data.user.id})).error);
       }
     });
+    await crmCases(t,{admin,ssr,base,headers,jsonHeaders,list,save,webhook,messageId,ids,customerIds,jobIds,actor:created.data.user.id});
+    await mobileCases(t,{admin,base,cookies,ids});
+  });
+  await withServer(true,async()=>{
+    await t.test('approved schedules and CRM links survive application restart',async()=>{
+      const r=await list();assert.ok(r.some(i=>i.link));
+      const linked=r.find(i=>i.link);const job=await admin.from('jobs').select('id,expected_amount,final_amount,status').eq('id',linked.link.job_id).single();
+      assert.equal(job.error,null);assert.equal(job.data.status,'scheduled');assert.equal(job.data.final_amount,null);
+      assert.equal((await admin.from('sales').select('id').eq('job_id',job.data.id)).data.length,0);
+    });
   });
   await withServer(false,async()=>{
     await t.test('without development/preview mode the new route returns 404',async()=>{
       const r=await fetch(base+'/ai-office-lab',{headers,redirect:'manual'});assert.equal(r.status,404);
       assert.equal((await fetch(base+api,{headers})).status,404);
+      assert.equal((await fetch(base+'/api/ai-office/crm?id='+item.id,{headers})).status,404);
     });
   });
   await ssr.auth.signOut();

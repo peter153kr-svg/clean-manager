@@ -1,5 +1,8 @@
 # AI 일정관리 V1 — 로컬 합성 데이터 검증
 
+> 이 문서는 최초 65개 검증 시점의 기록이다. 후속 CRM 연결 및 실제 브라우저
+> 검증 결과는 [CRM·모바일 V1 보고서](ai-schedule-crm-mobile-v1.md)를 기준으로 한다.
+
 ## 브랜치 관계
 
 `codex/ai-office-development`는 PR #1의 `codex/telegram-schedule-intake`

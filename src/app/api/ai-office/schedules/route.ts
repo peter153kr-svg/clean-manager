@@ -30,15 +30,17 @@ export async function GET(){
   if(!enabled())return reply({error:'local_only'},404);
   if(!await authorize())return reply({error:'login_required'},401);
   const db=createAdminClient();
-  const [messages,approvals]=await Promise.all([
+  const [messages,approvals,links]=await Promise.all([
     db.from('telegram_schedule_messages').select('id,revision_at,posted_at,message_text,status').order('posted_at',{ascending:false}).limit(201),
     db.from('dev_ai_schedule_approvals').select('message_id,revision_at,fields'),
+    db.from('dev_ai_schedule_job_links').select('message_id,job_id,revision_at,fields'),
   ]);
-  if(messages.error||approvals.error)return reply({error:'local_schema_unavailable'},503);
+  if(messages.error||approvals.error||links.error)return reply({error:'local_schema_unavailable'},503);
   if(messages.data.length>200)return reply({error:'inbox_limit_reached'},409);
   return reply({items:messages.data.map(m=>{
     const approval=approvals.data.find(a=>a.message_id===m.id&&a.revision_at===m.revision_at&&m.status==='reviewed');
-    return {...m,review:extractSchedule(m.message_text??'',koreanDay(m.posted_at)),approved:approval?.fields??null};
+    return {...m,review:extractSchedule(m.message_text??'',koreanDay(m.posted_at)),approved:approval?.fields??null,
+      link:links.data.find(link=>link.message_id===m.id)??null};
   })});
 }
 export async function POST(request:Request){
