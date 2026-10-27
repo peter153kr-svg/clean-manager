@@ -113,6 +113,11 @@ try {
         if (existsSync(path.join(root, name))) throw new Error("Refusing Next validation in a checkout containing automatic env files; use an isolated worktree.");
       }
       if (!info.SERVICE_ROLE_KEY || !info.ANON_KEY) throw new Error("Local API keys unavailable.");
+      if(action==='integration'&&existsSync(path.join(root,'supabase/dev/ai-office-admin-role.sql'))){
+        const roleSetup=spawnSync('docker',['exec','-i','supabase_db_clean-manager-security','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1'],
+          {input:await readFile(path.join(root,'supabase/dev/ai-office-admin-role.sql')),env:localEnv(),windowsHide:true,encoding:'utf8'});
+        if(roleSetup.status!==0)throw new Error('Local administrator fixture setup failed');
+      }
       const args = action === "build" ? ["node_modules/next/dist/bin/next", "build"] : ["--test", "tests/crm-local.integration.mjs"];
       const result = spawnSync(process.execPath, args, {
         cwd: root, windowsHide: true, stdio: "inherit",
