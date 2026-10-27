@@ -6,6 +6,7 @@ import { analyzeSchedule,approveDraft,approvedJobs,chiefBriefing,contentBrief,re
 import type { Draft,OfficeJob,OfficeSale } from '@/lib/ai-office/engine';
 import { parseSchedulePost } from '@/lib/telegram/schedule';
 import type { SchedulePost } from '@/lib/telegram/schedule';
+import ScheduleV1 from './schedule-v1';
 
 const money=(value:number|null)=>value===null?'확인 필요':new Intl.NumberFormat('ko-KR').format(value)+'원';
 const sampleText=(day:string)=>`${day} 오전 9시\n현장: 합성 아파트 A\n예상 금액: 45만원`;
@@ -71,15 +72,16 @@ export default function OfficeLab({initialDay}:{initialDay:string}){
           className="ml-2 rounded-lg border border-slate-200 bg-white p-2"/></label>
     </header>
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-      합성 데이터 전용 · 새로고침하면 초기화됩니다. 실제 고객정보를 입력하지 마세요.
-      <span className="mt-1 block text-xs">분석은 규칙 기반 개발 버전입니다. 실제 봇 수신·AI API·CRM 저장·외부 발송은 연결하지 않았습니다.</span>
+      합성 데이터 전용 · 실제 고객정보를 입력하지 마세요.
+      <span className="mt-1 block text-xs">일정관리 V1은 로컬 DB에 저장됩니다. 아래 직원 실험 화면은 새로고침 시 초기화됩니다. 실제 봇·AI API·CRM 원장·외부 발송은 연결하지 않았습니다.</span>
     </div>
     <nav aria-label="AI 직원 선택" className="flex flex-wrap gap-2">
       {([['schedule','일정관리 직원'],['chief','AI 총괄실장'],['revenue','고객·매출 직원'],['content','블로그·릴스 직원']] as const).map(([value,label])=>
         <button key={value} onClick={()=>setTab(value)} aria-pressed={tab===value}
           className={`rounded-xl px-4 py-3 text-sm font-semibold ${tab===value?'bg-blue-600 text-white':'border border-slate-200 bg-white text-slate-600'}`}>{label}</button>)}
     </nav>
-    {tab==='schedule'&&<>
+    {(tab==='schedule'||tab==='chief')&&<ScheduleV1 day={day} briefingOnly={tab==='chief'}/>}
+    {tab==='schedule'&&<details><summary className="cursor-pointer text-sm text-slate-600">이전 메모리 실험 화면 열기 (V1과 별도 데이터)</summary>
       <section className="grid gap-4 lg:grid-cols-[1fr_1.3fr]">
         <div className={card}><h2 className="font-bold text-slate-900">텔레그램 합성 이벤트</h2>
           <p className="mt-2 text-xs text-slate-500">날짜·시간·현장·예상 금액을 분석합니다. 모호한 값은 추측하지 않습니다.</p>
@@ -110,15 +112,15 @@ export default function OfficeLab({initialDay}:{initialDay:string}){
             </article>)}</div>
         </div>
       </section>
-    </>}
-    {tab==='chief'&&<section className="space-y-4"><div className="grid gap-4 sm:grid-cols-3">
+    </details>}
+    {tab==='chief'&&<details><summary className="cursor-pointer text-sm text-slate-600">이전 총괄실장 실험 화면 (별도 합성 데이터)</summary><section className="space-y-4"><div className="grid gap-4 sm:grid-cols-3">
       {[["오늘 예정",brief.today.length+'건'],['내일 예정',brief.tomorrow.length+'건'],['미처리 검토',brief.pending+'건']].map(([label,value])=><div className={card} key={label}><p className="text-sm text-slate-500">{label}</p><b className="mt-2 block text-3xl">{value}</b></div>)}</div>
       <div className={card}><h2 className="font-bold">대표 브리핑</h2><p className="mt-2 text-sm">기준일 {day} · 확인되지 않은 일정은 확정 일정에 포함하지 않습니다.</p>
         {[['오늘',brief.today],['내일',brief.tomorrow]] .map(([label,items])=><div key={String(label)} className="mt-4"><h3 className="text-sm font-semibold">{String(label)}</h3>
           {(items as OfficeJob[]).length?(items as OfficeJob[]).map(j=><p className="mt-1 text-sm text-slate-600" key={j.id}>{j.start_time??'시간 확인'} · {j.site}</p>):<p className="mt-1 text-sm text-slate-400">예정된 일정 없음</p>}</div>)}
         <p className="mt-4 text-sm text-amber-800">검토 대기 {brief.pending}건 · 시간 누락 {brief.missingTimes}건 · 동일 시작시각 {brief.conflicts.length}건</p>
         {brief.conflicts.map(c=><p key={c.at} className="mt-2 text-sm text-red-700">{c.at}: {c.sites.join(', ')} · 작업시간/이동시간을 확인해 주세요.</p>)}
-      </div><div className={card}><h2 className="font-bold">직원 업무 상태</h2><ul className="mt-3 space-y-2 text-sm text-slate-600"><li>일정 직원: 검토 대기 {brief.pending}건</li><li>고객·매출 직원: 수납 원장 확인 {revenue.unknownCollections}건</li><li>콘텐츠 직원: 기획안 {contentReviewed?'검토 완료':'승인 대기'}</li></ul></div></section>}
+      </div><div className={card}><h2 className="font-bold">직원 업무 상태</h2><ul className="mt-3 space-y-2 text-sm text-slate-600"><li>일정 직원: 검토 대기 {brief.pending}건</li><li>고객·매출 직원: 수납 원장 확인 {revenue.unknownCollections}건</li><li>콘텐츠 직원: 기획안 {contentReviewed?'검토 완료':'승인 대기'}</li></ul></div></section></details>}
     {tab==='revenue'&&<section className="space-y-4"><div className={card}><label className="text-sm font-semibold">보고 기간 <select aria-label="매출 보고 기간" value={period} onChange={e=>setPeriod(e.target.value as typeof period)} className="ml-3 rounded-lg border p-2"><option value="day">일간</option><option value="week">주간</option><option value="month">월간</option></select></label><p className="mt-3 text-sm text-slate-500">{range.start} ~ {range.end}</p></div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[['예약·진행 예상',revenue.expected],['확정 매출',revenue.confirmed],['확인된 수납',revenue.collected],['미수금',revenue.receivable]].map(([label,value])=><div className={card} key={String(label)}><p className="text-sm text-slate-500">{String(label)}</p><b className="mt-2 block text-xl">{money(value as number|null)}</b></div>)}</div>
       <div className={card}><h2 className="font-bold">합성 고객·현장 원장</h2><p className="mt-2 text-xs text-slate-500">예상 매출을 확정 매출이나 수납금에 더하지 않습니다. 일부 수납의 실제 금액을 모르면 미수금을 추정하지 않습니다.</p>
